@@ -8,13 +8,13 @@ ts = TimeSeries(key)
 
 # Handling Historical Input------------------------------------------
 
-market = ["DJI"]
+market = ["DJI","MSFT"]
 marketstart = '09:31:00'
 marketstop = '16:00:00'
 #USA eastern time by default (GMT -5), 9:30AM opens, 4PM closes, Weekend closes
 #if historical is true, it will fetch ALL data past 20 years for every stock in the market
 #---------------------------
-historical = True
+historical = False
 #---------------------------
 if historical == True:
     print("fetching historical data")
@@ -47,13 +47,16 @@ else:
 #Handling Recent Input---------------------------------------------------------
 #if recent is true, it will fetch all data by the minute in the past 24 hour for every stock in the market
 #---------------------------
-recent = False
+recent = True
 #---------------------------
 if recent == True:
     print("fetching recent data")
     print("will fetch the following stocks: {}".format(str(market)))
+
     for stocks in market:
         data,meta_data = ts.get_intraday(stocks,interval = '1min',outputsize = 'full')
+        f = open("{}\\Input_CSV\\Recent\\{}.txt".format(os.path.dirname(__file__),str(stocks)),'w')
+
         print(len(data))
 
         savedate = []
@@ -64,11 +67,31 @@ if recent == True:
                 savedate.append(currentminute[0])
             elif currentminute[1] == marketstop:
                 incompletedate.append(currentminute[0])
+        
 
         if len(set(savedate)^set(incompletedate))>0:
             print("{} is incomplete, please run again after the market closes".format(str(set(savedate)^set(incompletedate))))
-                
 
+
+
+
+        for days in data:
+            currentday = data[days]
+            
+            # Use this if viewer friendly text is needed
+            #currentline = "0. day: {}\t1. open: {}\t2. high: {}\t3. low: {}\t4. close: \n"
+
+            #Use this if CSV version is needed
+            currentline = "{},{},{},{},{},{}\n"
+
+            
+            currentline = currentline.format(days,currentday["1. open"],currentday["2. high"],currentday["3. low"],currentday["4. close"],currentday["5. volume"])
+            f.write(currentline)
+        print("{}'s retrieve operation is done".format(stocks))
+            
+            
+    f.close()
+        
 #INCOMPLETE----------------------
                     
             
