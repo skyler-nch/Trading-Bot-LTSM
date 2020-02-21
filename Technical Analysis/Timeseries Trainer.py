@@ -1,3 +1,4 @@
+#https://stackabuse.com/time-series-prediction-using-lstm-with-pytorch-in-python/
 import os
 import torch
 import torch.nn as nn
