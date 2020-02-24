@@ -38,25 +38,25 @@ def CreateInOutSequence(inputlist,trainingwindow):
 inputcsv = "DJI.txt"
 
 #how many lines of data are used
-datasize = 2000
+datasize = 1000
 
 #percentage dictates how much of the latest records will be used as test data
 percentage = 0.1
 
 # open, high, low, close, adjusted close, volume are available for use
-datatype = "high"
+datatype = "low"
 
 #lr is learning rate
 lr = 0.001
 
 #epoch determines how many rounds does the network goes through
-epochs = 150
+epochs = 7
 
 #the sliding window cutout for the neural network
-trainingwindow = 7
+trainingwindow = 5
 
 #how many sequences should be predicted, best to follow values by the training window
-PredictionCount = trainingwindow
+PredictionCount = 5
 
 ############################################
 
@@ -136,58 +136,71 @@ for i in range(epochs):
         optimizer.step()
 
     if single_loss.item() < previousloss:
-        leastlossmodel = model.state_dict()
+        leastlossmodel = model
         leastlossvalue = single_loss.item()
         previousloss = leastlossvalue
 
     stop = time.time()
     print("epoch: {}/{} \t loss: {} \t time taken: {} seconds".format(i+1,epochs,single_loss.item(),round(stop-start,4)))
 
-torch.save(model.state_dict(), "{}\\Models\\{}".format(os.path.dirname(__file__),"{}-{}.pth".format(inputcsv.split(".")[0],leastlossvalue)))
+torch.save(leastlossmodel.state_dict(), "{}\\Models\\{}".format(os.path.dirname(__file__),"{}-{}.pth".format(inputcsv.split(".")[0],leastlossvalue)))
 print("saved model with {} loss value".format(leastlossvalue))
 
-
-
+latestmodel = model
+listofmodel = {"Least Loss Model":leastlossmodel,"Latest Model":latestmodel}
 #Prediction stage
 
-test_inputs = NormalisedTrainingData[-PredictionCount:].tolist()
-#print(test_inputs)
 
-model.eval()
-
-for i in range(PredictionCount):
-    seq = torch.FloatTensor(test_inputs[-trainingwindow:])
-    with torch.no_grad():
-        model.hidden = (torch.zeros(1, 1, model.hidden_layer_size),
-                        torch.zeros(1, 1, model.hidden_layer_size))
-        test_inputs.append(model(seq).item())
+for key in listofmodel:
+    test_inputs = NormalisedTrainingData[-PredictionCount:].tolist()
+    #print(test_inputs)
 
 
-predicted_values = test_inputs[PredictionCount:]
-actual_predictions = scaler.inverse_transform(np.array(test_inputs[PredictionCount:] ).reshape(-1, 1))
-actual_predictions = [item[0] for item in actual_predictions]
-previousvalue = [traindata[-1]]+testdata
-#print(previousvalue)
-print("##########################Results##########################")
-correct = 0
-for i in range(len(actual_predictions)):
-    if float(previousvalue[i]) == float(testdata[i]):
-        testcompare = "Same"
-    elif float(previousvalue[i]) < float(testdata[i]):
-        testcompare = "Higher"
-    else:
-        testcompare = "Lower"
+    model = listofmodel[key]
+    model.eval()
 
-    if float(previousvalue[i]) == actual_predictions[i]:
-        predictcompare = "Same"
-    elif float(previousvalue[i]) < actual_predictions[i]:
-        predictcompare = "Higher"
-    else:
-        predictcompare = "Lower"
+    for i in range(PredictionCount):
+        seq = torch.FloatTensor(test_inputs[-trainingwindow:])
+        with torch.no_grad():
+            model.hidden = (torch.zeros(1, 1, model.hidden_layer_size),
+                            torch.zeros(1, 1, model.hidden_layer_size))
+            test_inputs.append(model(seq).item())
 
-    if testcompare == predictcompare:
-        correct += 1
-        
-    print("Actual Results: {},{}\t\tPredicted Result: {},{}\t\tDifference: {}".format(round(float(testdata[i]),2), testcompare, round(actual_predictions[i],2), predictcompare,round(actual_predictions[i]-float(testdata[i]),2)))
 
-print("Prediction on High/Low is {}/{} correct".format(correct, len(actual_predictions)))
+    predicted_values = test_inputs[PredictionCount:]
+    actual_predictions = scaler.inverse_transform(np.array(test_inputs[PredictionCount:] ).reshape(-1, 1))
+    actual_predictions = [item[0] for item in actual_predictions]
+    previousvalue = [traindata[-1]]+testdata
+    #print(previousvalue)
+    
+    print("##########################{} Results##########################".format(key))
+    correct = 0
+    differenceaverage = []
+    accuracyaverage = []
+    for i in range(len(actual_predictions)):
+        if float(previousvalue[i]) == float(testdata[i]):
+            testcompare = "Same"
+        elif float(previousvalue[i]) < float(testdata[i]):
+            testcompare = "Higher"
+        else:
+            testcompare = "Lower"
+
+        if float(previousvalue[i]) == actual_predictions[i]:
+            predictcompare = "Same"
+        elif float(previousvalue[i]) < actual_predictions[i]:
+            predictcompare = "Higher"
+        else:
+            predictcompare = "Lower"
+
+        if testcompare == predictcompare:
+            correct += 1
+        difference = round(actual_predictions[i]-float(testdata[i]),2)
+        differenceaverage.append(abs(difference))
+        if difference < 0:
+            accuracy = round(actual_predictions[i]/float(testdata[i]),2)
+        else:
+            accuracy = round(float(testdata[i])/actual_predictions[i],2)
+        accuracyaverage.append(accuracy)
+        print("Actual Results: {},{}\t\tPredicted Result: {},{}\t\tDifference: {}".format(round(float(testdata[i]),2), testcompare, round(actual_predictions[i],2), predictcompare, difference))
+
+    print("Prediction on High/Low is {}/{} correct, On average has a {}({}%) difference in value".format(correct, len(actual_predictions), round(sum(differenceaverage)/len(differenceaverage),5), (round(sum(accuracyaverage)/len(accuracyaverage)*100,2))))
