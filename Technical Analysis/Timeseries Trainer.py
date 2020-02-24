@@ -1,5 +1,6 @@
 #https://stackabuse.com/time-series-prediction-using-lstm-with-pytorch-in-python/
 import os
+import time
 import torch
 import torch.nn as nn
 
@@ -33,11 +34,36 @@ def CreateInOutSequence(inputlist,trainingwindow):
     return sequence
 
 
-#Input------------------------------------
+#Input######################################
+inputcsv = "DJI.txt"
+
+#how many lines of data are used
+datasize = 2000
+
+#percentage dictates how much of the latest records will be used as test data
+percentage = 0.1
+
+# open, high, low, close, adjusted close, volume are available for use
+datatype = "high"
+
+#lr is learning rate
+lr = 0.001
+
+#epoch determines how many rounds does the network goes through
+epochs = 150
+
+#the sliding window cutout for the neural network
+trainingwindow = 7
+
+#how many sequences should be predicted, best to follow values by the training window
+PredictionCount = trainingwindow
+
+############################################
+
+
 listofitems = os.listdir("{}\\Input_CSV\\Historical".format(os.path.dirname(__file__)))
 print("There are currently {} in the input folder".format(str(listofitems)))
 
-inputcsv = "DJI.txt"
 
 print("we will be traning on the {}".format(inputcsv))
 
@@ -60,14 +86,13 @@ print("{} records found in file".format(len(rawdata)))
     
 #Preprocessing------------------------------------
 
-#percentage dictates how much of the latest records will be used as test data
-percentage = 0.1
-testdatasize = round(percentage*len(rawdata))
-
 #we will train for now, the high of the stock price, also to inverse the records from oldest to newest
 
-traindata = stockdata["high"][::-1][:-testdatasize]
-testdata = stockdata["high"][::-1][-testdatasize:]
+
+testdatasize = round(percentage*datasize)
+data = stockdata[datatype][::-1][:datasize]
+traindata = data[:-testdatasize]
+testdata = data[-testdatasize:]
 print("training data consists of {} records, testing data consists of {} records".format(len(traindata),len(testdata)))
 
 
@@ -81,23 +106,24 @@ NormalisedTrainingData = scaler.fit_transform(np.asarray(traindata).reshape(-1,1
 #convert the dataset to FloatTensor object fot the pytorch model
 NormalisedTrainingData = torch.FloatTensor(NormalisedTrainingData).view(-1)
 
-#any sequence window will do, but since its daily data, its nicer to have it at same size of the testing data
-trainingwindow = testdatasize
+#any sequence window will do, its nicer to have it at same size of the testing data
+
 trainingsequence = CreateInOutSequence(NormalisedTrainingData,trainingwindow)
 
 #print(trainingsequence[:5])
 
 model = LSTM()
 loss_function = nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+optimizer = torch.optim.Adam(model.parameters(), lr)
 
 
 #Training Model
 #-----------------------------------------------
-epochs = 150
 #-----------------------------------------------
 #print(trainingsequence)
+previousloss = 1
 for i in range(epochs):
+    start = time.time()
     for seq, labels in trainingsequence:
         optimizer.zero_grad()
         model.hidden_cell = (torch.zeros(1, 1, model.hidden_layer_size),
@@ -109,14 +135,20 @@ for i in range(epochs):
         single_loss.backward()
         optimizer.step()
 
-    if i%25 == 1:
-        print(f'epoch: {i:3} loss: {single_loss.item():10.8f}')
+    if single_loss.item() < previousloss:
+        leastlossmodel = model.state_dict()
+        leastlossvalue = single_loss.item()
+        previousloss = leastlossvalue
 
-print(f'epoch: {i:3} loss: {single_loss.item():10.10f}')
+    stop = time.time()
+    print("epoch: {}/{} \t loss: {} \t time taken: {} seconds".format(i+1,epochs,single_loss.item(),round(stop-start,4)))
+
+torch.save(model.state_dict(), "{}\\Models\\{}".format(os.path.dirname(__file__),"{}-{}.pth".format(inputcsv.split(".")[0],leastlossvalue)))
+print("saved model with {} loss value".format(leastlossvalue))
+
 
 
 #Prediction stage
-PredictionCount = testdatasize
 
 test_inputs = NormalisedTrainingData[-PredictionCount:].tolist()
 #print(test_inputs)
@@ -135,27 +167,27 @@ predicted_values = test_inputs[PredictionCount:]
 actual_predictions = scaler.inverse_transform(np.array(test_inputs[PredictionCount:] ).reshape(-1, 1))
 actual_predictions = [item[0] for item in actual_predictions]
 previousvalue = [traindata[-1]]+testdata
-print(previousvalue)
-
+#print(previousvalue)
+print("##########################Results##########################")
 correct = 0
 for i in range(len(actual_predictions)):
     if float(previousvalue[i]) == float(testdata[i]):
-        testcompare = "Same as previous"
+        testcompare = "Same"
     elif float(previousvalue[i]) < float(testdata[i]):
-        testcompare = "Higher then previous"
+        testcompare = "Higher"
     else:
-        testcompare = "Lower then previous"
+        testcompare = "Lower"
 
     if float(previousvalue[i]) == actual_predictions[i]:
-        predictcompare = "Same as previous"
+        predictcompare = "Same"
     elif float(previousvalue[i]) < actual_predictions[i]:
-        predictcompare = "Higher then previous"
+        predictcompare = "Higher"
     else:
-        predictcompare = "Lower then previous"
+        predictcompare = "Lower"
 
     if testcompare == predictcompare:
         correct += 1
         
-    print("Actual Results: {},{}    Predicted Result: {},{}    Difference: {}".format(testdata[i], testcompare, actual_predictions[i], predictcompare,actual_predictions[i]-float(testdata[i])))
+    print("Actual Results: {},{}\t\tPredicted Result: {},{}\t\tDifference: {}".format(round(float(testdata[i]),2), testcompare, round(actual_predictions[i],2), predictcompare,round(actual_predictions[i]-float(testdata[i]),2)))
 
 print("Prediction on High/Low is {}/{} correct".format(correct, len(actual_predictions)))

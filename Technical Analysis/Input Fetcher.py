@@ -14,7 +14,7 @@ marketstop = '16:00:00'
 #USA eastern time by default (GMT -5), 9:30AM opens, 4PM closes, Weekend closes
 #if historical is true, it will fetch ALL data past 20 years for every stock in the market
 #---------------------------
-historical = False
+historical = True
 #---------------------------
 if historical == True:
     print("fetching historical data")
@@ -47,7 +47,7 @@ else:
 #Handling Recent Input---------------------------------------------------------
 #if recent is true, it will fetch all data by the minute in the past 24 hour for every stock in the market
 #---------------------------
-recent = True
+recent = False
 #---------------------------
 if recent == True:
     print("fetching recent data")
