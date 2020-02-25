@@ -38,22 +38,22 @@ def CreateInOutSequence(inputlist,trainingwindow):
 inputcsv = "DJI.txt"
 
 #how many lines of data are used
-datasize = 1000
+datasize = 800
 
 #percentage dictates how much of the latest records will be used as test data
 percentage = 0.1
 
 # open, high, low, close, adjusted close, volume are available for use
-datatype = "low"
+datatype = "high"
 
 #lr is learning rate
-lr = 0.001
+lr = 0.01
 
 #epoch determines how many rounds does the network goes through
 epochs = 7
 
 #the sliding window cutout for the neural network
-trainingwindow = 5
+trainingwindow = 30
 
 #how many sequences should be predicted, best to follow values by the training window
 PredictionCount = 5
@@ -90,11 +90,11 @@ print("{} records found in file".format(len(rawdata)))
 
 
 testdatasize = round(percentage*datasize)
-data = stockdata[datatype][::-1][:datasize]
+data = stockdata[datatype][:datasize][::-1]
 traindata = data[:-testdatasize]
 testdata = data[-testdatasize:]
-print("training data consists of {} records, testing data consists of {} records".format(len(traindata),len(testdata)))
 
+print("training data consists of {} records, testing data consists of {} records".format(len(traindata),len(testdata)))
 
 #normalise the training data
 scaler = MinMaxScaler(feature_range=(-1,1))
@@ -171,7 +171,7 @@ for key in listofmodel:
     actual_predictions = scaler.inverse_transform(np.array(test_inputs[PredictionCount:] ).reshape(-1, 1))
     actual_predictions = [item[0] for item in actual_predictions]
     previousvalue = [traindata[-1]]+testdata
-    #print(previousvalue)
+    print(actual_predictions)
     
     print("##########################{} Results##########################".format(key))
     correct = 0
